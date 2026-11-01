@@ -18,7 +18,7 @@ It runs entirely in your browser. There is no install step, no server, and no ne
 
 ## Quick start
 
-1. Download `clipwright-studio.html`.
+1. Open the live version at https://meadedm1.github.io/clipwright-studio/.
 2. Open it in any modern web browser.
 3. Choose your options, click **Build bundle**, and copy the prompt.
 4. Paste the prompt into your image generator, then save the sheet under the name shown in the bundle plan.
