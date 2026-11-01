@@ -79,7 +79,7 @@
     <div style="margin-top:14px">
       <label for="subjects">Your subjects (one per line, optional)</label>
       <textarea id="subjects" maxlength="2000" placeholder="soldier&#10;ballerina&#10;christmas tree"></textarea>
-      <p class="hint">Your subjects are used first. The theme fills the remaining slots.</p>
+      <p class="hint">Your subjects are used first, and the theme fills the remaining slots. Put text in double quotes, such as "Merry Christmas", to create a lettering piece (up to 40 characters).</p>
     </div>
     <div class="row">
       <button id="generate">Build bundle</button>
@@ -165,6 +165,26 @@ function slugify(s){
   return out || "piece";
 }
 
+const TEXT_MAX = 40;
+const TEXT_ALLOWED = /^[A-Za-z0-9 .!?,'&-]+$/;
+
+// A line in quotes is a lettering piece. Any other line is an illustration.
+function parseLine(raw){
+  const s = raw.trim().replace(/\s+/g, " ");
+  const startsQuote = /^["\u201C]/.test(s);
+  const endsQuote = /["\u201D]$/.test(s);
+  if(startsQuote !== endsQuote || (s.length === 1 && startsQuote))
+    return {error:`Check the quotation marks on: ${s}`};
+  if(startsQuote){
+    const inner = s.slice(1, -1).trim().replace(/\s+/g, " ");
+    if(!inner) return {error:"A lettering piece cannot be empty quotes."};
+    if(inner.length > TEXT_MAX) return {error:`Lettering "${inner.slice(0, 20)}..." is longer than 40 characters.`};
+    if(!TEXT_ALLOWED.test(inner)) return {error:`Lettering "${inner}" uses characters the rules do not allow. Use letters, numbers, spaces, and . ! ? , ' & -`};
+    return {kind:"text", text:inner};
+  }
+  return {kind:"illustration", subject:s};
+}
+
 function buildBundle(cfg){
   const errors = [], warnings = [];
   const count = Number(cfg.count);
@@ -186,60 +206,76 @@ function buildBundle(cfg){
 
   const theme = THEMES.find(t => t.name === cfg.themeName) || null;
 
-  const subjects = [], seen = new Set();
+  const items = [], seen = new Set();
   for(const raw of String(cfg.subjects || "").split("\n")){
-    let s = raw.trim().replace(/\s+/g," ");
-    if(!s) continue;
-    if(s.length > MAX_SUBJECT){
-      s = s.slice(0, MAX_SUBJECT).trim();
+    if(!raw.trim()) continue;
+    const parsed = parseLine(raw);
+    if(parsed.error){ errors.push(parsed.error); continue; }
+    let item = parsed;
+    if(item.kind === "illustration" && item.subject.length > MAX_SUBJECT){
+      item = {kind:"illustration", subject:item.subject.slice(0, MAX_SUBJECT).trim()};
       warnings.push("A subject was shortened to 60 characters.");
     }
-    const k = s.toLowerCase();
-    if(seen.has(k)){ warnings.push(`Removed duplicate subject "${s}".`); continue; }
-    seen.add(k); subjects.push(s);
+    const key = item.kind === "text" ? "text:" + item.text.toLowerCase() : item.subject.toLowerCase();
+    if(seen.has(key)){ warnings.push(`Removed duplicate entry "${raw.trim()}".`); continue; }
+    seen.add(key); items.push(item);
   }
 
-  if(GRIDS[count] && subjects.length > count)
-    warnings.push(`You listed ${subjects.length} subjects; only the first ${count} are used.`);
+  if(GRIDS[count] && items.length > count)
+    warnings.push(`You listed ${items.length} entries; only the first ${count} are used.`);
 
-  const chosen = subjects.slice(0, count);
+  const chosen = items.slice(0, count);
   if(theme && GRIDS[count]){
     for(const sug of theme.suggestions){
       if(chosen.length >= count) break;
       const k = sug.toLowerCase();
-      if(!seen.has(k)){ seen.add(k); chosen.push(sug); }
+      if(!seen.has(k)){ seen.add(k); chosen.push({kind:"illustration", subject:sug}); }
     }
   }
   if(GRIDS[count] && chosen.length < count)
-    errors.push(`You need ${count} subjects. Add more, or choose a theme to fill the rest.`);
+    errors.push(`You need ${count} entries. Add more, or choose a theme to fill the rest.`);
 
   if(errors.length) return {ok:false, errors, warnings, pieces:[], prompt:""};
 
   const [cols, rows] = GRIDS[count];
-  const pieces = chosen.map((s, i) => ({
-    index: i + 1,
-    subject: s,
-    file: `${slugify(s)}-${String(i+1).padStart(2,"0")}.png`
-  }));
+  const pieces = chosen.map((c, i) => {
+    const isText = c.kind === "text";
+    const base = isText ? `${slugify(c.text)}-text` : slugify(c.subject);
+    return {
+      index: i + 1,
+      kind: c.kind,
+      subject: isText ? `Lettering: "${c.text}"` : c.subject,
+      text: isText ? c.text : "",
+      file: `${base}-${String(i + 1).padStart(2, "0")}.png`
+    };
+  });
 
-  const sheetBase = theme ? slugify(theme.name) : slugify(styleName);
+  const hasText = pieces.some(p => p.kind === "text");
+  const list = pieces.map(p => p.kind === "text"
+    ? `${p.index}. Lettering: "${p.text}"`
+    : `${p.index}. ${p.subject}`).join("\n");
+  const rules = hasText
+    ? "Rules: every piece is fully separate, with clear empty space between pieces and no overlapping. Each piece has the same scale, line weight, and lighting. Plain off-white background, no border, no frame, no watermark. Illustration pieces contain no text, labels, or numbers. Lettering pieces contain only the exact wording given in quotes, spelled letter for letter, in one consistent lettering style, with no extra words, numbers, or decorations added. Each piece is one centered object."
+    : "Rules: every piece is fully separate, with clear empty space between pieces and no overlapping. Each piece has the same scale, line weight, and lighting. Plain off-white background, no border, no frame, no text, no labels, no numbers, no watermark. Each piece is one centered object.";
+
   const prompt = [
     `Create one illustration sheet with exactly ${count} separate clipart pieces in an even grid of ${cols} columns and ${rows} rows.`,
     `Style: ${styleDesc}.`,
     `Color palette: ${palette.name} (${palette.colors.join(", ")}). Use these colors consistently across every piece.`,
     theme ? `Theme: ${theme.name}.` : null,
-    "Pieces, read left to right and top to bottom:\n" + pieces.map(p => `${p.index}. ${p.subject}`).join("\n"),
-    "Rules: every piece is fully separate, with clear empty space between pieces and no overlapping. Each piece has the same scale, line weight, and lighting. Plain off-white background, no border, no frame, no text, no labels, no numbers, no watermark. Each piece is one centered object.",
+    "Pieces, read left to right and top to bottom:\n" + list,
+    rules,
     "Output: high resolution with sharp edges, suitable for cutting out."
   ].filter(Boolean).join("\n\n");
 
   if(prompt.length > MAX_PROMPT)
-    return {ok:false, errors:["Your subject list makes the prompt too long. Shorten some subjects."], warnings, pieces:[], prompt:""};
+    return {ok:false, errors:["Your entries make the prompt too long. Shorten some of them."], warnings, pieces:[], prompt:""};
 
+  const sheetBase = theme ? slugify(theme.name) : slugify(styleName);
   return {
     ok:true, errors:[], warnings, count, grid:`${cols}x${rows}`,
     sheetFile: `${sheetBase}-sheet-${count}.png`,
-    pieces, prompt
+    hasText, pieces, prompt
   };
 }
 
@@ -335,6 +371,62 @@ function runTests(){
     const subs = Array.from({length:16}, (_, i) => "z".repeat(55) + String(i).padStart(2,"0")).join("\n");
     const r = buildBundle(cfg({subjects:subs, count:16}));
     return {pass: r.ok && r.prompt.length < MAX_PROMPT, detail:`prompt length ${r.prompt ? r.prompt.length : "n/a"}`};
+  });
+
+  t("Quoted text becomes a lettering piece with the exact wording", () => {
+    const r = buildBundle(cfg({subjects:'"Merry Christmas"', count:8, themeName:T}));
+    return {pass: r.ok && r.pieces[0].kind === "text" && r.prompt.includes('Lettering: "Merry Christmas"') && r.pieces[0].file === "merry-christmas-text-01.png"};
+  });
+
+  t("Sheets with lettering use the exact-wording rules", () => {
+    const r = buildBundle(cfg({subjects:'"Good Morning"', count:8, themeName:T}));
+    return {pass: r.ok && /exact wording given in quotes/.test(r.prompt) && /Illustration pieces contain no text/.test(r.prompt)};
+  });
+
+  t("Sheets without lettering keep the original no-text rule", () => {
+    const r = buildBundle(cfg({themeName:T}));
+    return {pass: r.ok && !r.hasText && !/exact wording/.test(r.prompt) && /no text, no labels/.test(r.prompt)};
+  });
+
+  t("Mixed sheet holds lettering and illustrations together", () => {
+    const r = buildBundle(cfg({subjects:'"Merry Christmas"\nreindeer', count:8, themeName:T}));
+    const kinds = r.pieces.map(p => p.kind);
+    return {pass: r.ok && r.pieces.length === 8 && kinds[0] === "text" && kinds[1] === "illustration" && kinds.filter(k => k === "text").length === 1};
+  });
+
+  t("Lettering duplicates are removed, ignoring case", () => {
+    const r = buildBundle(cfg({subjects:'"Hi"\n"hi"', count:8, themeName:T}));
+    return {pass: r.ok && r.pieces.filter(p => p.kind === "text").length === 1 && r.warnings.some(w => /duplicate/i.test(w))};
+  });
+
+  t("Unmatched quotation mark is rejected with a clear error", () => {
+    const r = buildBundle(cfg({subjects:'"Merry Christmas', themeName:T}));
+    return {pass: !r.ok && r.errors.some(e => /quotation marks/.test(e))};
+  });
+
+  t("Empty quotes are rejected", () => {
+    const r = buildBundle(cfg({subjects:'""', themeName:T}));
+    return {pass: !r.ok && r.errors.some(e => /empty/.test(e))};
+  });
+
+  t("Lettering longer than 40 characters is rejected", () => {
+    const r = buildBundle(cfg({subjects:'"' + "a".repeat(41) + '"', themeName:T}));
+    return {pass: !r.ok && r.errors.some(e => /40 characters/.test(e))};
+  });
+
+  t("Lettering with disallowed characters is rejected", () => {
+    const r = buildBundle(cfg({subjects:'"<b>Hi</b>"', themeName:T}));
+    return {pass: !r.ok && r.errors.some(e => /characters/.test(e))};
+  });
+
+  t("Every style x palette x count builds a valid sheet with lettering", () => {
+    let n = 0; const bad = [];
+    for(const s of STYLES) for(const p of PALETTES) for(const c of [8,12,16]){
+      const r = buildBundle(cfg({styleName:s.name, paletteName:p.name, count:c, subjects:'"Merry Christmas"\n"Good Morning"', themeName:T}));
+      n++;
+      if(!r.ok || r.pieces.length !== c || !r.hasText || !r.prompt.includes('Lettering: "Good Morning"')) bad.push(`${s.name} / ${p.name} / ${c}`);
+    }
+    return {pass: bad.length === 0, detail:`${n} combinations checked, ${bad.length} failed`};
   });
 
   return results;

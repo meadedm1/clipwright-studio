@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Command-line runner for the Clipwright Studio self-tests.
- * Loads the core logic directly from clipwright-studio.html, so the tests
+ * Loads the core logic directly from index.html, so the tests
  * always run against the shipped file. Exits with code 1 if any test fails.
  */
 const fs = require("fs");
@@ -13,7 +13,7 @@ const html = fs.readFileSync(htmlPath, "utf8");
 const start = html.indexOf("/*CORE-START*/");
 const end = html.indexOf("/*CORE-END*/");
 if (start === -1 || end === -1) {
-  console.error("Could not find CORE-START / CORE-END markers in clipwright-studio.html");
+  console.error("Could not find CORE-START / CORE-END markers in index.html");
   process.exit(1);
 }
 const core = html.slice(start, end);

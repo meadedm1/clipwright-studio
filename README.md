@@ -4,11 +4,14 @@ Clipwright Studio is a single-file prompt builder for planning matching clipart 
 
 It runs entirely in your browser. There is no install step, no server, and no network calls.
 
+**Live app:** https://meadedm1.github.io/clipwright-studio/
+
 ## Features
 
 - **21 built-in styles**, plus a "Write my own" option for custom style descriptions
 - **7 color palettes**, each with hex codes written into the prompt
 - **5 themes** with suggested subjects (Nutcracker Christmas, Cozy books and coffee, Coastal summer, Autumn pumpkin patch, Garden tea party)
+- **Lettering pieces:** put text in double quotes, such as `"Merry Christmas"`, and the prompt asks for that exact wording (up to 40 characters)
 - **Sheet sizes of 8, 12, or 16 pieces**, laid out on a 4-column grid
 - **Your own subjects first**, with the theme filling any open slots
 - **Duplicate removal, length limits, and warnings** so the prompt stays clean
@@ -18,10 +21,20 @@ It runs entirely in your browser. There is no install step, no server, and no ne
 
 ## Quick start
 
-1. Download `clipwright-studio.html`.
-2. Open it in any modern web browser.
-3. Choose your options, click **Build bundle**, and copy the prompt.
-4. Paste the prompt into your image generator, then save the sheet under the name shown in the bundle plan.
+1. Open the live app at https://meadedm1.github.io/clipwright-studio/
+2. Choose your options, click **Build bundle**, and copy the prompt.
+3. Paste the prompt into your image generator, then save the sheet under the name shown in the bundle plan.
+
+To run it offline, download `index.html` and open it in any modern browser.
+
+## Writing subjects and lettering
+
+| You type | The prompt asks for |
+|---|---|
+| `reindeer` | An illustration of a reindeer, with no text |
+| `"Merry Christmas"` | A lettering piece with exactly those words, spelled letter for letter |
+
+Lettering can use letters, numbers, spaces, and these characters: `. ! ? , ' & -`. A quoted line can be up to 40 characters. A sheet can mix both kinds of piece.
 
 ## How it works
 
@@ -29,13 +42,13 @@ It runs entirely in your browser. There is no install step, no server, and no ne
 flowchart LR
     A[Style + Palette] --> D[buildBundle]
     B[Theme] --> D
-    C[Your subjects] --> D
+    C[Your subjects and lettering] --> D
     E[Sheet size: 8, 12, or 16] --> D
     D --> F[Locked prompt]
     D --> G[Bundle plan<br/>sheet name + piece files]
 ```
 
-Subjects you enter come first. If you leave slots open, the theme fills them in order. The prompt then lists every piece with a number, so the image generator knows exactly what to draw and where.
+Entries you type come first. If you leave slots open, the theme fills them in order. The prompt then lists every piece with a number, so the image generator knows exactly what to draw and where.
 
 ## Running the self-tests
 
@@ -47,32 +60,33 @@ Subjects you enter come first. If you leave slots open, the theme fills them in 
 node tests/run-tests.js
 ```
 
-The runner loads the logic directly from `clipwright-studio.html`, so it always tests the shipped file. It exits with code `0` when every test passes and `1` when any test fails, which makes it usable in a CI workflow.
+The runner loads the logic directly from `index.html`, so it always tests the shipped file. It exits with code `0` when every test passes and `1` when any test fails, which makes it usable in a CI workflow.
 
 The suite covers:
-- Every style, palette, and sheet size combination (441 checks)
+- Every style, palette, and sheet size combination, with and without lettering (882 checks)
 - Grid and piece counts
 - Subject handling: fill from theme, duplicates, overflow, and length limits
+- Lettering rules: exact wording, quote matching, length, and allowed characters
 - Input validation for missing or blank fields
 - File-name rules (unique, lowercase, no spaces)
-- Prompt rules (no text, no borders, no overlap, palette codes included)
+- Prompt rules (no text on illustrations, no borders, no overlap, palette codes included)
 - Prompt length under the limit at maximum input
 
 ## Customizing
 
-All content lives in the `CORE` section of `clipwright-studio.html`, between the `/*CORE-START*/` and `/*CORE-END*/` markers.
+All content lives in the core section of `index.html`, between the `/*CORE-START*/` and `/*CORE-END*/` markers.
 
 - **Add a style:** add an object with `name` and `desc` to the `STYLES` array.
 - **Add a palette:** add an object with `name` and a `colors` array of hex codes to `PALETTES`.
-- **Add a theme:** add an object with `name` and a `suggestions` array to `THEMES`. A theme needs **at least 16 suggestions** so that a 16-piece sheet can be filled when the user lists no subjects. The current test suite checks combinations against the first theme only, so run the tests after adding a theme and check the new theme's suggestion count yourself.
+- **Add a theme:** add an object with `name` and a `suggestions` array to `THEMES`. A theme needs **at least 16 suggestions** so that a 16-piece sheet can be filled when the user lists no entries. The test suite checks combinations against the first theme only, so check the new theme's suggestion count yourself.
 
 ## Project structure
 
 ```
 clipwright-studio/
-├── clipwright-studio.html   # The app: markup, styles, core logic, and UI
+├── index.html          # The app: markup, styles, core logic, and UI
 ├── tests/
-│   └── run-tests.js         # Command-line self-test runner
+│   └── run-tests.js    # Command-line self-test runner
 └── README.md
 ```
 
@@ -80,6 +94,7 @@ clipwright-studio/
 
 - **Prompt-only.** The app writes prompts and does not generate images. You need your own image generator.
 - **Output varies by generator.** Image tools do not always place pieces exactly where a numbered list asks. Review every sheet before using it.
+- **Lettering can be misspelled.** Image generators sometimes change letters, especially in longer phrases. Check every lettering piece before using it, and regenerate any sheet with errors.
 - **Subject wording matters.** Short, concrete subjects such as "teacup" work better than abstract ones such as "cozy feeling."
 - **Not tested on every browser.** The self-tests run in Node.js. The browser interface has been checked for logic, but not for every browser and screen size.
 
