@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipwright Studio</title>
+<style>
+  :root { --cream:#FBF7F0; --ink:#3A2F28; --muted:#7A6A5E; --gold:#C9A24E; --rose:#E8B4B8; --card:#FFFFFF; --line:#E9DFD2; --ok:#2F7D4F; --bad:#A33A3A; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: Georgia, "Times New Roman", serif; background:var(--cream); color:var(--ink); line-height:1.5; }
+  header { padding:28px 20px 8px; text-align:center; }
+  h1 { margin:0; font-size:2.2rem; letter-spacing:.5px; }
+  h1 span { color:var(--gold); }
+  .tagline { color:var(--muted); margin:6px 0 0; }
+  main { max-width:960px; margin:0 auto; padding:16px 20px 40px; }
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:18px 0 24px; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; text-align:center; }
+  .step b { display:block; font-size:1.6rem; color:var(--gold); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:20px; margin-bottom:18px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  label { display:block; font-size:.85rem; letter-spacing:.8px; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+  select, input[type=text], textarea { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--ink); }
+  textarea { min-height:120px; resize:vertical; }
+  .hint { font-size:.85rem; color:var(--muted); margin:4px 0 0; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  button { font:inherit; padding:10px 18px; border-radius:999px; border:1px solid var(--gold); background:var(--gold); color:#fff; cursor:pointer; }
+  button.alt { background:#fff; color:var(--ink); border-color:var(--line); }
+  #errors { color:var(--bad); }
+  #warnings { color:#8A6A1F; }
+  pre { white-space:pre-wrap; background:#faf6ee; border:1px dashed var(--line); border-radius:10px; padding:14px; font-size:.92rem; font-family: "Courier New", monospace; }
+  ol.manifest { columns:2; padding-left:20px; font-size:.9rem; }
+  .pass { color:var(--ok); } .fail { color:var(--bad); }
+  .badge { display:inline-block; background:var(--rose); color:var(--ink); padding:2px 10px; border-radius:999px; font-size:.85rem; }
+  footer { text-align:center; color:var(--muted); font-size:.85rem; padding:10px 20px 30px; }
+  @media (max-width:640px){ .grid2{grid-template-columns:1fr;} .steps{grid-template-columns:1fr;} ol.manifest{columns:1;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Clipwright <span>Studio</span></h1>
+  <p class="tagline">Pick a look, list your subjects, and get one locked prompt plus a full bundle plan.</p>
+</header>
+
+<main>
+  <section class="steps" aria-label="How it works">
+    <div class="step"><b>1</b>Choose a style and palette</div>
+    <div class="step"><b>2</b>Pick a theme and list subjects</div>
+    <div class="step"><b>3</b>Copy the prompt and generate in your chatbot</div>
+  </section>
+
+  <section class="card">
+    <div class="grid2">
+      <div>
+        <label for="style">Style</label>
+        <select id="style"></select>
+        <div id="customStyleWrap" hidden style="margin-top:8px">
+          <input type="text" id="customStyle" maxlength="120" placeholder="Describe your style, e.g. pixel art retro">
+        </div>
+      </div>
+      <div>
+        <label for="palette">Color palette</label>
+        <select id="palette"></select>
+      </div>
+      <div>
+        <label for="theme">Theme / collection</label>
+        <select id="theme"></select>
+        <p class="hint">Theme suggestions fill any subject slots you leave empty.</p>
+      </div>
+      <div>
+        <label for="count">Pieces on the sheet</label>
+        <select id="count">
+          <option value="8">8 pieces (4 x 2 grid)</option>
+          <option value="12" selected>12 pieces (4 x 3 grid)</option>
+          <option value="16">16 pieces (4 x 4 grid)</option>
+        </select>
+        <p class="hint">Fewer pieces usually means cleaner detail.</p>
+      </div>
+    </div>
+    <div style="margin-top:14px">
+      <label for="subjects">Your subjects (one per line, optional)</label>
+      <textarea id="subjects" maxlength="2000" placeholder="soldier&#10;ballerina&#10;christmas tree"></textarea>
+      <p class="hint">Your subjects are used first. The theme fills the remaining slots.</p>
+    </div>
+    <div class="row">
+      <button id="generate">Build bundle</button>
+      <button id="random" class="alt">Let it pick for me</button>
+    </div>
+  </section>
+
+  <section class="card" id="results" aria-live="polite">
+    <div id="errors"></div>
+    <div id="warnings"></div>
+    <div id="output" hidden>
+      <p><span class="badge" id="badge"></span></p>
+      <h3>Locked prompt</h3>
+      <pre id="prompt"></pre>
+      <div class="row"><button id="copy">Copy prompt</button></div>
+      <h3>Bundle plan</h3>
+      <p class="hint" id="sheetName"></p>
+      <ol class="manifest" id="manifest"></ol>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3 style="margin-top:0">Self-test</h3>
+    <div id="testSummary"></div>
+    <ul id="testList" style="font-size:.9rem"></ul>
+  </section>
+</main>
+
+<footer>Prompt-only mode: this tool writes the prompts. Images are created in your own chatbot.</footer>
+
+<script>
+/*CORE-START*/
+const CUSTOM_STYLE = "__custom__";
+
+const STYLES = [
+  {name:"Whimsical watercolor & gouache", desc:"whimsical watercolor and gouache illustration, soft wet edges, opaque highlights"},
+  {name:"Delicate nursery watercolor", desc:"delicate nursery-style watercolor, pale washes, gentle outlines"},
+  {name:"Cute kawaii watercolor", desc:"cute kawaii watercolor, large expressive eyes, rosy cheeks, soft pastel washes"},
+  {name:"Crayon doodle pastel", desc:"hand-drawn crayon and pastel doodle with visible grainy strokes"},
+  {name:"Soft watercolor", desc:"soft watercolor with transparent layered washes and muted edges"},
+  {name:"Loose watercolor sketch", desc:"loose watercolor sketch with ink linework and splashed color"},
+  {name:"Delicate & elegant", desc:"delicate and elegant fine-line illustration with refined detail"},
+  {name:"Whimsical storybook", desc:"whimsical children's storybook illustration with warm light and painterly texture"},
+  {name:"Vintage & textured", desc:"vintage illustration with aged paper texture and faded print colors"},
+  {name:"Glossy & shimmer", desc:"glossy illustration with metallic shimmer highlights"},
+  {name:"Modern flat vector", desc:"modern flat vector illustration with clean shapes and no gradients"},
+  {name:"Cut paper collage", desc:"cut paper collage with layered paper edges"},
+  {name:"Felt & stitched", desc:"felt appliqué style with visible stitching along the edges"},
+  {name:"Colored pencil", desc:"colored pencil drawing with visible hatching"},
+  {name:"Retro 70s groovy", desc:"retro 1970s groovy style with warm earthy tones and bold rounded shapes"},
+  {name:"Sticker style", desc:"die-cut sticker style with a bold white outline around each piece"},
+  {name:"Oil pastel", desc:"oil pastel illustration with bold, textured strokes"},
+  {name:"Embroidery patch", desc:"embroidered patch style with satin-stitch texture"},
+  {name:"Vintage woodcut print", desc:"vintage woodcut print with bold black linework and limited ink tones"},
+  {name:"Pearl & gold embossed", desc:"pearlescent illustration with embossed gold accents"},
+  {name:"Neon glow", desc:"bright neon outlines with a soft luminous glow"}
+];
+
+const PALETTES = [
+  {name:"Sage & Blush", colors:["#9CAF88","#E8B4B8","#F5E6E0","#5C6B57"]},
+  {name:"Cocoa & Cream", colors:["#6B4F3A","#D9C3A5","#F7F1E8","#B5835A"]},
+  {name:"Dusty Navy & Gold", colors:["#2E3A59","#C9A94E","#EDE7DA","#7C8BA1"]},
+  {name:"Pastel Sea", colors:["#A8D8E0","#F7D9C4","#FFF8EF","#5FA3B5"]},
+  {name:"Cranberry & Gold", colors:["#8E2C3B","#D4A84B","#F6EFE6","#4A2C2A"]},
+  {name:"Autumn Rust", colors:["#B5582B","#E3A857","#F4E4CC","#5B3A29"]},
+  {name:"Mint & Coral", colors:["#A6D8C5","#F28C7A","#FBF6EE","#3E6B5E"]}
+];
+
+const THEMES = [
+  {name:"Vintage Nutcracker Christmas Storybook", suggestions:["nutcracker soldier","ballerina","sugar plum fairy","mouse king","candy cane","decorated Christmas tree","jingle bells","toy drum","gingerbread house","glass ornament","wrapped present","little girl holding a nutcracker","toy soldier drum","Christmas stocking","silver bells","peppermint swirl"]},
+  {name:"Cozy books and coffee", suggestions:["steaming teacup","stack of novels","chipped mug","reading glasses","lit candle","knit scarf","open book","sleepy cat","potted plant","croissant","bookmark with tassel","rain cloud","reading lamp","wool blanket","pocket watch","tea tin"]},
+  {name:"Coastal summer", suggestions:["seashell","sailboat","lighthouse","starfish","beach umbrella","sea turtle","surfboard","ice cream cone","palm frond","sand bucket","seagull","sunglasses","sand dollar","crab","hermit crab","conch shell"]},
+  {name:"Autumn pumpkin patch", suggestions:["carved pumpkin","acorn","red maple leaf","scarecrow","apple","fox","hot cider mug","wheelbarrow","sunflower","mushroom","hay bale","owl","squirrel","cornucopia","wool sweater","pine cone"]},
+  {name:"Garden tea party", suggestions:["teapot","teacup","butterfly","watering can","rose","bunny","macarons","bird on branch","teaspoon","strawberry","garden gnome","honey jar","snail","lavender sprig","ladybug","picnic basket"]}
+];
+
+const GRIDS = {8:[4,2], 12:[4,3], 16:[4,4]};
+const MAX_SUBJECT = 60;
+const MAX_PROMPT = 3000;
+
+function slugify(s){
+  const out = String(s).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"");
+  return out || "piece";
+}
+
+function buildBundle(cfg){
+  const errors = [], warnings = [];
+  const count = Number(cfg.count);
+  if(!GRIDS[count]) errors.push("Piece count must be 8, 12, or 16.");
+
+  const palette = PALETTES.find(p => p.name === cfg.paletteName);
+  if(!palette) errors.push("Choose a color palette.");
+
+  let styleName = "", styleDesc = "";
+  if(cfg.styleName === CUSTOM_STYLE){
+    const t = String(cfg.customStyle || "").trim().replace(/\s+/g," ");
+    if(!t) errors.push("Describe your custom style.");
+    styleName = t; styleDesc = t;
+  } else {
+    const s = STYLES.find(x => x.name === cfg.styleName);
+    if(!s) errors.push("Choose a style.");
+    else { styleName = s.name; styleDesc = s.desc; }
+  }
+
+  const theme = THEMES.find(t => t.name === cfg.themeName) || null;
+
+  const subjects = [], seen = new Set();
+  for(const raw of String(cfg.subjects || "").split("\n")){
+    let s = raw.trim().replace(/\s+/g," ");
+    if(!s) continue;
+    if(s.length > MAX_SUBJECT){
+      s = s.slice(0, MAX_SUBJECT).trim();
+      warnings.push("A subject was shortened to 60 characters.");
+    }
+    const k = s.toLowerCase();
+    if(seen.has(k)){ warnings.push(`Removed duplicate subject "${s}".`); continue; }
+    seen.add(k); subjects.push(s);
+  }
+
+  if(GRIDS[count] && subjects.length > count)
+    warnings.push(`You listed ${subjects.length} subjects; only the first ${count} are used.`);
+
+  const chosen = subjects.slice(0, count);
+  if(theme && GRIDS[count]){
+    for(const sug of theme.suggestions){
+      if(chosen.length >= count) break;
+      const k = sug.toLowerCase();
+      if(!seen.has(k)){ seen.add(k); chosen.push(sug); }
+    }
+  }
+  if(GRIDS[count] && chosen.length < count)
+    errors.push(`You need ${count} subjects. Add more, or choose a theme to fill the rest.`);
+
+  if(errors.length) return {ok:false, errors, warnings, pieces:[], prompt:""};
+
+  const [cols, rows] = GRIDS[count];
+  const pieces = chosen.map((s, i) => ({
+    index: i + 1,
+    subject: s,
+    file: `${slugify(s)}-${String(i+1).padStart(2,"0")}.png`
+  }));
+
+  const sheetBase = theme ? slugify(theme.name) : slugify(styleName);
+  const prompt = [
+    `Create one illustration sheet with exactly ${count} separate clipart pieces in an even grid of ${cols} columns and ${rows} rows.`,
+    `Style: ${styleDesc}.`,
+    `Color palette: ${palette.name} (${palette.colors.join(", ")}). Use these colors consistently across every piece.`,
+    theme ? `Theme: ${theme.name}.` : null,
+    "Pieces, read left to right and top to bottom:\n" + pieces.map(p => `${p.index}. ${p.subject}`).join("\n"),
+    "Rules: every piece is fully separate, with clear empty space between pieces and no overlapping. Each piece has the same scale, line weight, and lighting. Plain off-white background, no border, no frame, no text, no labels, no numbers, no watermark. Each piece is one centered object.",
+    "Output: high resolution with sharp edges, suitable for cutting out."
+  ].filter(Boolean).join("\n\n");
+
+  if(prompt.length > MAX_PROMPT)
+    return {ok:false, errors:["Your subject list makes the prompt too long. Shorten some subjects."], warnings, pieces:[], prompt:""};
+
+  return {
+    ok:true, errors:[], warnings, count, grid:`${cols}x${rows}`,
+    sheetFile: `${sheetBase}-sheet-${count}.png`,
+    pieces, prompt
+  };
+}
+
+function runTests(){
+  const results = [];
+  const t = (name, fn) => {
+    try { const r = fn(); results.push({name, pass:!!r.pass, detail:r.detail || ""}); }
+    catch(e){ results.push({name, pass:false, detail:String(e)}); }
+  };
+  const base = {styleName:STYLES[0].name, paletteName:PALETTES[0].name, themeName:"", count:8, subjects:"", customStyle:""};
+  const cfg = o => Object.assign({}, base, o);
+  const T = THEMES[0].name;
+
+  t("Every style x palette x count builds a valid prompt", () => {
+    let n = 0; const bad = [];
+    for(const s of STYLES) for(const p of PALETTES) for(const c of [8,12,16]){
+      const r = buildBundle(cfg({styleName:s.name, paletteName:p.name, count:c, themeName:T}));
+      n++;
+      if(!r.ok || r.pieces.length !== c || /undefined|NaN|null/.test(r.prompt)) bad.push(`${s.name} / ${p.name} / ${c}`);
+    }
+    return {pass: bad.length === 0, detail:`${n} combinations checked, ${bad.length} failed`};
+  });
+
+  t("Piece count and grid match for 8, 12, and 16", () => {
+    const want = {8:"4x2", 12:"4x3", 16:"4x4"};
+    const ok = [8,12,16].every(c => { const r = buildBundle(cfg({count:c, themeName:T})); return r.grid === want[c] && r.pieces.length === c; });
+    return {pass: ok, detail:"8 = 4x2, 12 = 4x3, 16 = 4x4"};
+  });
+
+  t("Rejects piece counts other than 8, 12, or 16", () => {
+    const r = buildBundle(cfg({count:10, themeName:T}));
+    return {pass: !r.ok && r.errors.some(e => /8, 12, or 16/.test(e))};
+  });
+
+  t("Empty subject list fills from the theme", () => {
+    const r = buildBundle(cfg({themeName:T, count:12}));
+    return {pass: r.ok && r.pieces[0].subject === THEMES[0].suggestions[0], detail:`First piece: ${r.pieces[0] && r.pieces[0].subject}`};
+  });
+
+  t("User subjects come first and the theme fills the rest", () => {
+    const r = buildBundle(cfg({themeName:T, count:8, subjects:"my custom owl"}));
+    return {pass: r.ok && r.pieces[0].subject === "my custom owl" && r.pieces.length === 8};
+  });
+
+  t("Duplicate subjects are removed, ignoring case", () => {
+    const r = buildBundle(cfg({subjects:"Owl\nowl\nfox", count:8, themeName:T}));
+    return {pass: r.ok && r.pieces[0].subject === "Owl" && r.pieces[1].subject === "fox" && r.warnings.some(w => /duplicate/i.test(w))};
+  });
+
+  t("Extra subjects are trimmed with a warning", () => {
+    const r = buildBundle(cfg({subjects:"a1\na2\na3\na4\na5\na6\na7\na8\na9", count:8}));
+    return {pass: r.ok && r.pieces.length === 8 && r.warnings.some(w => /only the first 8/.test(w))};
+  });
+
+  t("Subjects over 60 characters are shortened", () => {
+    const r = buildBundle(cfg({subjects:"x".repeat(100), count:8, themeName:T}));
+    return {pass: r.ok && r.pieces[0].subject.length === 60};
+  });
+
+  t("No subjects and no theme shows an error", () => {
+    const r = buildBundle(cfg({subjects:"", count:8, themeName:""}));
+    return {pass: !r.ok && r.errors.length > 0};
+  });
+
+  t("Blank style and palette are rejected", () => {
+    const r = buildBundle(cfg({styleName:"", paletteName:"", themeName:T}));
+    return {pass: !r.ok && r.errors.length >= 2};
+  });
+
+  t("Custom style text is used, with spacing cleaned up", () => {
+    const r = buildBundle(cfg({styleName:CUSTOM_STYLE, customStyle:"  pixel art   retro ", themeName:T}));
+    return {pass: r.ok && r.prompt.includes("Style: pixel art retro.")};
+  });
+
+  t("Blank custom style is rejected", () => {
+    const r = buildBundle(cfg({styleName:CUSTOM_STYLE, customStyle:"   ", themeName:T}));
+    return {pass: !r.ok};
+  });
+
+  t("File names are unique, lowercase, and free of spaces", () => {
+    const r = buildBundle(cfg({subjects:"Mouse King!!\nMouse King!!\n???", count:12, themeName:T}));
+    const files = r.pieces.map(p => p.file);
+    const clean = files.every(f => /^[a-z0-9-]+\.png$/.test(f));
+    return {pass: r.ok && new Set(files).size === files.length && clean, detail:files.slice(0,3).join(", ")};
+  });
+
+  t("Prompt forbids text, borders, and overlap, and includes palette hex codes", () => {
+    const r = buildBundle(cfg({themeName:T}));
+    return {pass: /no text/.test(r.prompt) && /no border/.test(r.prompt) && /overlapping/.test(r.prompt) && r.prompt.includes(PALETTES[0].colors[0])};
+  });
+
+  t("Maximum-length input stays under the prompt limit", () => {
+    const subs = Array.from({length:16}, (_, i) => "z".repeat(55) + String(i).padStart(2,"0")).join("\n");
+    const r = buildBundle(cfg({subjects:subs, count:16}));
+    return {pass: r.ok && r.prompt.length < MAX_PROMPT, detail:`prompt length ${r.prompt ? r.prompt.length : "n/a"}`};
+  });
+
+  return results;
+}
+/*CORE-END*/
+
+// ---------- UI ----------
+(function(){
+  if(typeof document === "undefined") return;
+  const $ = id => document.getElementById(id);
+
+  function fill(sel, items){
+    sel.innerHTML = "";
+    for(const it of items){
+      const o = document.createElement("option");
+      o.value = it.value; o.textContent = it.label;
+      sel.appendChild(o);
+    }
+  }
+
+  fill($("style"), [...STYLES.map(s => ({value:s.name, label:s.name})), {value:CUSTOM_STYLE, label:"Write my own..."}]);
+  fill($("palette"), PALETTES.map(p => ({value:p.name, label:p.name})));
+  fill($("theme"), [{value:"", label:"No theme (I will list all subjects)"}, ...THEMES.map(t => ({value:t.name, label:t.name}))]);
+  $("theme").value = THEMES[1].name;
+
+  $("style").addEventListener("change", () => {
+    $("customStyleWrap").hidden = $("style").value !== CUSTOM_STYLE;
+  });
+
+  function readCfg(){
+    return {
+      styleName: $("style").value,
+      customStyle: $("customStyle").value,
+      paletteName: $("palette").value,
+      themeName: $("theme").value,
+      count: $("count").value,
+      subjects: $("subjects").value
+    };
+  }
+
+  function render(r){
+    $("errors").textContent = r.errors.join(" ");
+    $("warnings").textContent = r.warnings.length ? "Note: " + [...new Set(r.warnings)].join(" ") : "";
+    $("output").hidden = !r.ok;
+    if(!r.ok) return;
+    $("badge").textContent = `${r.count} pieces, ${r.grid} grid, 1 sheet`;
+    $("prompt").textContent = r.prompt;
+    $("sheetName").textContent = `Save the generated sheet as: ${r.sheetFile}`;
+    const ol = $("manifest"); ol.innerHTML = "";
+    for(const p of r.pieces){
+      const li = document.createElement("li");
+      li.textContent = `${p.file}  (${p.subject})`;
+      ol.appendChild(li);
+    }
+  }
+
+  function generate(){ render(buildBundle(readCfg())); }
+
+  $("generate").addEventListener("click", generate);
+
+  $("random").addEventListener("click", () => {
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    $("style").value = pick(STYLES).name;
+    $("style").dispatchEvent(new Event("change"));
+    $("palette").value = pick(PALETTES).name;
+    $("theme").value = pick(THEMES).name;
+    generate();
+  });
+
+  $("copy").addEventListener("click", async () => {
+    const text = $("prompt").textContent;
+    try { await navigator.clipboard.writeText(text); $("copy").textContent = "Copied"; }
+    catch(e){ $("copy").textContent = "Copy failed: select the text manually"; }
+    setTimeout(() => $("copy").textContent = "Copy prompt", 1800);
+  });
+
+  // Self-test panel
+  const results = runTests();
+  const passed = results.filter(r => r.pass).length;
+  $("testSummary").innerHTML = "";
+  const sum = document.createElement("strong");
+  sum.textContent = `${passed} of ${results.length} tests passed`;
+  sum.className = passed === results.length ? "pass" : "fail";
+  $("testSummary").appendChild(sum);
+  for(const r of results){
+    const li = document.createElement("li");
+    li.className = r.pass ? "pass" : "fail";
+    li.textContent = `${r.pass ? "PASS" : "FAIL"}: ${r.name}${r.detail ? " (" + r.detail + ")" : ""}`;
+    $("testList").appendChild(li);
+  }
+
+  generate();
+})();
+</script>
+</body>
+</html>
