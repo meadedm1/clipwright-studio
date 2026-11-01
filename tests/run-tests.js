@@ -7,7 +7,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const htmlPath = path.join(__dirname, "..", "clipwright-studio.html");
+const htmlPath = path.join(__dirname, "..", "index.html");
 const html = fs.readFileSync(htmlPath, "utf8");
 
 const start = html.indexOf("/*CORE-START*/");
